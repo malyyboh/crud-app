@@ -1,9 +1,12 @@
 from typing import List
 
-from fastapi import FastAPI, status, Body, HTTPException
+from fastapi import FastAPI, status, Body, HTTPException, Request, Form
+from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
 
 app = FastAPI()
+templates = Jinja2Templates(directory="templates")
 
 
 class Message(BaseModel):
@@ -25,26 +28,26 @@ messages_db = []
 
 
 @app.get("/messages")
-async def get_all_messages() -> List[Message]:
-    return messages_db
+async def get_all_messages(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(request, "message.html", {"messages": messages_db})
 
 
 @app.get("/messages/{message_id}")
-async def get_message(message_id: int) -> Message:
+async def get_message(request: Request, message_id: int) -> HTMLResponse:
     try:
-        return messages_db[message_id]
+        return templates.TemplateResponse(request, "message.html", {"message": messages_db[message_id]})
     except IndexError:
         raise HTTPException(status_code=404, detail="Message not found")
 
 
 @app.post("/messages", status_code=status.HTTP_201_CREATED)
-async def create_message(message: Message) -> str:
+async def create_message(request: Request, message: str = Form()) -> HTMLResponse:
     if messages_db:
-        message.id = max(messages_db, key=lambda m: m.id).id + 1
+        max_id_message = max(messages_db, key=lambda m: m.id).id + 1
     else:
-        message.id = 0
-    messages_db.append(message)
-    return "Message created!"
+        max_id_message = 0
+    messages_db.append(Message(id=max_id_message, text=message))
+    return templates.TemplateResponse(request, "message.html", {"messages": messages_db})
 
 
 @app.put("/messages/{message_id}")
